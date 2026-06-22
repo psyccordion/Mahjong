@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d2b35">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Mahjong para Luis y Leticia</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root{
+    --abyss:#0d2b35; --sea:#15505c; --shallow:#1f7a85;
+    --amber:#ffce6b; --amberEdge:#c79a2e; --coral:#ff7a59; --coralEdge:#d4512f;
+    --foam:#eaf7f5;
+    --tile:#fffdf5; --tile2:#f3e9d2; --tileEdge:#b99a5e;
+    --display:Georgia,'Iowan Old Style','Times New Roman',serif;
+    --body:'Segoe UI',system-ui,-apple-system,'Helvetica Neue',sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:var(--body);
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(120,220,230,.18), transparent 60%),
+      radial-gradient(140% 90% at 50% 120%, rgba(0,0,0,.45), transparent 55%),
+      linear-gradient(160deg,var(--abyss),var(--sea) 55%,var(--shallow));
+    color:var(--foam); overflow:hidden; position:fixed; inset:0;
+    display:flex; flex-direction:column;
+    user-select:none; -webkit-user-select:none; touch-action:manipulation;
+  }
+  /* ----- Top bar ----- */
+  #topbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:8px;
+    padding:max(8px,env(safe-area-inset-top)) 14px 8px;
+    background:linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.06)); backdrop-filter:blur(4px);
+  }
+  #topbar h1{font-family:var(--display); font-size:17px; font-weight:700; letter-spacing:.2px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px rgba(0,0,0,.4);}
+  .pill{background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); border-radius:20px; padding:5px 12px; font-size:13px; font-weight:600; white-space:nowrap;}
+  .iconbtn{flex:0 0 auto; width:40px; height:40px; border:none; border-radius:12px; font-size:19px;
+    background:rgba(255,255,255,.14); color:var(--foam); cursor:pointer; box-shadow:0 3px 0 rgba(0,0,0,.3);
+    display:flex; align-items:center; justify-content:center;}
+  .iconbtn:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.3);}
+  .iconbtn:focus-visible{outline:3px solid #9be7ff; outline-offset:2px;}
+  .btn{
+    border:none; border-radius:14px; padding:11px 15px; font-size:15px; font-weight:700;
+    background:linear-gradient(180deg,#ffe09a,var(--amber)); color:#5a3d00; cursor:pointer; box-shadow:0 3px 0 var(--amberEdge);
+    transition:transform .05s, box-shadow .05s; white-space:nowrap; font-family:var(--body);
+  }
+  .btn:active{transform:translateY(2px); box-shadow:0 1px 0 var(--amberEdge);}
+  .btn.primary{background:linear-gradient(180deg,#ff9a7d,var(--coral)); color:#3d1402; box-shadow:0 3px 0 var(--coralEdge);}
+  .btn.primary:active{box-shadow:0 1px 0 var(--coralEdge);}
+  .btn.ghost{background:rgba(255,255,255,.14); color:var(--foam); box-shadow:0 3px 0 rgba(0,0,0,.3);}
+  .btn.ghost:active{box-shadow:0 1px 0 rgba(0,0,0,.3);}
+  .btn:focus-visible, .lvlBtn:focus-visible{outline:3px solid #9be7ff; outline-offset:2px;}
+  /* ----- Action bar (2×2 grande en celular, fila en pantallas anchas) ----- */
+  #actions{
+    flex:0 0 auto; display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px; padding:8px 14px; width:100%; max-width:440px; margin:0 auto;
+  }
+  #actions .btn{width:100%; text-align:center;}
+  @media (min-width:560px){
+    #actions{grid-template-columns:repeat(4,auto); justify-content:center; max-width:none;}
+    #actions .btn{width:auto;}
+  }
+  /* ----- Stage / board ----- */
+  #stage{flex:1 1 auto; position:relative; overflow:hidden;}
+  #board{position:absolute; top:0; left:0; transform-origin:top left;}
+  .tile{
+    position:absolute; border-radius:11px;
+    background:linear-gradient(150deg,var(--tile),var(--tile2));
+    border:1px solid var(--tileEdge);
+    box-shadow:3px 5px 0 rgba(70,45,10,.42), inset 0 2px 3px rgba(255,255,255,.9), inset 0 -3px 4px rgba(150,110,40,.22);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:transform .08s, box-shadow .12s, opacity .2s;
+  }
+  .tile .face{width:38px; height:38px; line-height:0; filter:drop-shadow(0 1px 1px rgba(0,0,0,.18));}
+  .tile .face svg{width:100%; height:100%; display:block;}
+  .tile.blocked{filter:brightness(.78) saturate(.85);}
+  .tile.blocked .face{opacity:.85;}
+  .tile.free{cursor:pointer;}
+  .tile.selected{
+    box-shadow:0 0 0 3px var(--coral), 3px 5px 0 rgba(70,45,10,.42), inset 0 2px 3px rgba(255,255,255,.9);
+    transform:translateY(-3px) scale(1.05);
+  }
+  .tile.hint{animation:hint .6s ease-in-out 3;}
+  @keyframes hint{0%,100%{box-shadow:3px 5px 0 rgba(70,45,10,.42), inset 0 2px 3px rgba(255,255,255,.9);}50%{box-shadow:0 0 0 4px #59d98a, 3px 5px 0 rgba(70,45,10,.42);}}
+  @media (prefers-reduced-motion: reduce){
+    .tile, .btn{transition:none;}
+    .tile.hint{animation:none; box-shadow:0 0 0 4px #59d98a, 3px 5px 0 rgba(70,45,10,.42);}
+  }
+  .tile.pop{transform:scale(0); opacity:0;}
+  /* ----- Overlays / screens ----- */
+  .screen{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px; text-align:center;
+    padding:24px;
+    background:radial-gradient(120% 80% at 50% 0%, rgba(31,122,133,.55), transparent 60%), rgba(8,30,38,.94);
+    backdrop-filter:blur(6px); z-index:50;
+  }
+  .screen.hidden{display:none;}
+  .screen h2{font-family:var(--display); font-size:30px; font-weight:700; line-height:1.2; text-shadow:0 2px 4px rgba(0,0,0,.4);}
+  .screen p{font-size:17px; opacity:.94; max-width:min(340px,100%); line-height:1.55;}
+  .logo{font-size:clamp(30px,10vw,46px); letter-spacing:1px; line-height:1; max-width:100%; filter:drop-shadow(0 3px 5px rgba(0,0,0,.4));}
+  #levelGrid{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:11px;
+    width:100%; max-width:360px; max-height:58vh; overflow-y:auto; padding:6px;
+  }
+  .lvlBtn{
+    aspect-ratio:1; border:none; border-radius:14px; font-size:18px; font-weight:800;
+    background:linear-gradient(180deg,#ffe09a,var(--amber)); color:#5a3d00; cursor:pointer; box-shadow:0 3px 0 var(--amberEdge);
+    display:flex; align-items:center; justify-content:center; font-family:var(--body);
+  }
+  .lvlBtn.locked{background:rgba(255,255,255,.1); color:rgba(255,255,255,.38); box-shadow:none; cursor:default;}
+  .lvlBtn.done{background:linear-gradient(180deg,#9be88a,#5cb85c); box-shadow:0 3px 0 #3d9140; color:#123;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+  .small{font-size:13px; opacity:.7;}
+  #toast{
+    position:absolute; bottom:calc(16px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,.8); padding:10px 18px; border-radius:24px; font-size:14px; font-weight:600;
+    z-index:60; opacity:0; transition:opacity .25s; pointer-events:none; max-width:90vw; text-align:center;
+  }
+  #toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+  <div id="topbar">
+    <h1>🌸 Mahjong — Luis y Leticia 🐋</h1>
+    <span class="pill" id="levelPill">Nv 1</span>
+    <span class="pill" id="pairsPill">0/0</span>
+    <span class="pill" id="scorePill">⭐ 0</span>
+    <button class="iconbtn" id="muteBtn" aria-label="Silenciar">🔊</button>
+  </div>
+
+  <div id="actions">
+    <button class="btn ghost" id="menuBtn">☰ Niveles</button>
+    <button class="btn" id="hintBtn">💡 Pista</button>
+    <button class="btn ghost" id="shuffleBtn">🔀 Mezclar</button>
+    <button class="btn ghost" id="restartBtn">↺ Reiniciar</button>
+  </div>
+
+  <div id="stage">
+    <div id="board"></div>
+  </div>
+
+  <!-- Start screen -->
+  <div class="screen" id="startScreen">
+    <div class="logo">🌷🐟🦈🐋🌸</div>
+    <h2>Mahjong para<br>Luis y Leticia</h2>
+    <p>Empareja dos fichas iguales que estén <b>libres</b> (sin nada encima y con un costado despejado) hasta vaciar el tablero.</p>
+    <div class="row">
+      <button class="btn primary" id="playBtn">▶ Jugar</button>
+      <button class="btn ghost" id="levelsBtn">Elegir nivel</button>
+    </div>
+    <p class="small">Hecho con cariño 💙</p>
+  </div>
+
+  <!-- Level select -->
+  <div class="screen hidden" id="levelScreen">
+    <h2>Elige un nivel</h2>
+    <div id="levelGrid"></div>
+    <button class="btn ghost" id="backBtn">◀ Volver</button>
+  </div>
+
+  <!-- Win screen -->
+  <div class="screen hidden" id="winScreen">
+    <div class="logo">🎉🐬🎉</div>
+    <h2 id="winTitle">¡Nivel completado!</h2>
+    <p id="winMsg"></p>
+    <div class="row">
+      <button class="btn primary" id="nextBtn">▶ Siguiente nivel</button>
+      <button class="btn ghost" id="winMenuBtn">☰ Niveles</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script src="game-core.js"></script>
+<script src="symbols.js"></script>
+<script src="audio.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   Mahjong para Luis y Leticia
+   Capa de UI. La lógica vive en game-core.js (testeable en Node),
+   los dibujos en symbols.js y el sonido en audio.js.
+   ============================================================ */
+
+// Lógica pura del tablero (compartida con las pruebas de Node).
+const GC = window.GameCore;
+const SVG = window.GameSymbols.svg;   // id de símbolo → SVG dibujado a mano
+const Audio = window.GameAudio;       // efectos + música ambiental
+
+const isFree         = GC.isFree;
+const makeLevel      = GC.makeLevel;
+const paletteForLevel= GC.paletteForLevel;
+const assignSolvable = GC.assignSolvable;
+const TOTAL_LEVELS   = GC.TOTAL_LEVELS;   // 60 niveles
+
+// Dimensiones de ficha (px) y medio-celda — un poco más pequeñas y con más reto
+const TW = 46, TH = 60;        // ancho/alto ficha
+const HX = TW/2, HY = TH/2;    // paso de media celda
+const LX = 6, LY = -8;         // desplazamiento por capa (efecto 3D)
+
+// ============================================================
+//  Estado y render
+// ============================================================
+const boardEl  = document.getElementById('board');
+const stageEl  = document.getElementById('stage');
+const levelPill= document.getElementById('levelPill');
+const pairsPill= document.getElementById('pairsPill');
+const scorePill= document.getElementById('scorePill');
+
+let state = { level:1, tiles:[], els:new Map(), selected:null, total:0, matched:0,
+              score:0, chain:0, lastSym:null, hints:0, shuffles:0 };
+
+// ---- Mejor puntaje por nivel (persistente) ----
+function bestKey(L){ return 'll_mahjong_best_'+L; }
+function getBest(L){ return parseInt(localStorage.getItem(bestKey(L))||'0',10)||0; }
+function saveBest(L,score){ if(score>getBest(L)) localStorage.setItem(bestKey(L), String(score)); }
+
+function loadProgress(){
+  let n = parseInt(localStorage.getItem('ll_mahjong_unlocked')||'1',10);
+  if(isNaN(n)||n<1) n=1;
+  return Math.min(n, TOTAL_LEVELS);
+}
+function saveUnlocked(level){
+  const cur = loadProgress();
+  if(level>cur) localStorage.setItem('ll_mahjong_unlocked', String(Math.min(level,TOTAL_LEVELS)));
+}
+
+function startLevel(L){
+  state.level = L;
+  const tiles = makeLevel(L);     // pirámide + símbolos con solución garantizada
+  state.tiles = tiles;
+  state.selected = null;
+  state.total = tiles.length/2;
+  state.matched = 0;
+  state.score = 0; state.chain = 0; state.lastSym = null;
+  state.hints = 0; state.shuffles = 0;
+  renderBoard();
+  updatePills();
+  hideScreens();
+  Audio.startMusic();
+}
+
+function renderBoard(){
+  boardEl.innerHTML='';
+  state.els.clear();
+  let maxX=0, maxY=0;
+  // ordenar para que el DOM respete profundidad
+  const ordered = state.tiles.slice().sort((a,b)=> (a.z-b.z) || (a.gy-b.gy) || (a.gx-b.gx));
+  for(const t of ordered){
+    if(t.removed) continue;
+    const x = t.gx*HX + t.z*LX;
+    const y = t.gy*HY + t.z*LY;
+    const el = document.createElement('div');
+    el.className='tile';
+    el.style.left=x+'px'; el.style.top=y+'px';
+    el.style.width=TW+'px'; el.style.height=TH+'px';
+    el.style.zIndex = t.z*1000 + t.gy*10 + t.gx;
+    el.innerHTML='<span class="face">'+SVG[t.symbol]+'</span>';
+    el.addEventListener('click', ()=>onTileClick(t));
+    boardEl.appendChild(el);
+    state.els.set(t.id, el);
+    maxX=Math.max(maxX, x+TW); maxY=Math.max(maxY, y+TH);
+  }
+  boardEl.style.width = maxX+'px';
+  boardEl.style.height= maxY+'px';
+  boardEl._w=maxX; boardEl._h=maxY;
+  fitBoard();
+  updateFreeStates();
+}
+
+function fitBoard(){
+  const pad=14;
+  const aw = stageEl.clientWidth - pad*2;
+  const ah = stageEl.clientHeight - pad*2;
+  const bw = boardEl._w||1, bh = boardEl._h||1;
+  // Escala para llenar la pantalla; tope alto porque los SVG no pierden nitidez.
+  // Las fichas quedan grandes (mejor para personas mayores).
+  let s = Math.min(aw/bw, ah/bh, 2.8);
+  if(!isFinite(s)||s<=0) s=1;
+  const tx = pad + Math.max(0,(aw - bw*s)/2);
+  const ty = pad + Math.max(0,(ah - bh*s)/2);
+  boardEl.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+}
+window.addEventListener('resize', fitBoard);
+
+function updateFreeStates(){
+  for(const t of state.tiles){
+    const el = state.els.get(t.id);
+    if(!el || t.removed) continue;
+    const free = isFree(t, state.tiles);
+    el.classList.toggle('free', free);
+    el.classList.toggle('blocked', !free);
+  }
+}
+
+function updatePills(){
+  levelPill.textContent = 'Nv '+state.level;
+  pairsPill.textContent = state.matched+'/'+state.total;
+  scorePill.textContent = '⭐ '+state.score;
+}
+
+function onTileClick(t){
+  if(t.removed) return;
+  if(!isFree(t, state.tiles)){ Audio.invalid(); toast('Esa ficha está bloqueada'); return; }
+  const el = state.els.get(t.id);
+  if(state.selected === t){ // deseleccionar
+    el.classList.remove('selected'); state.selected=null; return;
+  }
+  if(!state.selected){
+    state.selected = t; el.classList.add('selected'); Audio.select(); return;
+  }
+  // hay una seleccionada
+  if(state.selected.symbol === t.symbol){
+    matchPair(state.selected, t);
+    state.selected=null;
+  } else {
+    state.els.get(state.selected.id).classList.remove('selected');
+    state.selected = t; el.classList.add('selected'); Audio.select();
+  }
+}
+
+function matchPair(a,b){
+  Audio.match();
+  // Cadena: emparejar el MISMO dibujo varias veces seguidas vale más (x2, x3… hasta x6).
+  state.chain = (a.symbol === state.lastSym) ? state.chain+1 : 1;
+  state.lastSym = a.symbol;
+  const pts = GC.matchScore(state.chain);
+  state.score += pts;
+  for(const t of [a,b]){
+    const el=state.els.get(t.id);
+    t.removed=true;
+    el.classList.add('pop'); el.classList.remove('selected');
+    setTimeout(()=>{ el.remove(); }, 200);
+  }
+  state.matched++;
+  updatePills();
+  if(state.chain>=3) toast('¡Cadena x'+Math.min(state.chain,GC.SCORE.chainCap)+'! +'+pts+' ⭐');
+  setTimeout(()=>{
+    updateFreeStates();
+    if(state.tiles.every(t=>t.removed)){ win(); }
+    else if(!hasMove()){ toast('Sin más jugadas… ¡mezclando!'); setTimeout(()=>doShuffle(true), 700); }
+  }, 210);
+}
+
+function hasMove(){ return GC.hasMove(state.tiles); }
+function findHint(){ return GC.findHint(state.tiles); }
+
+function win(){
+  Audio.win();
+  // Bonus de fin de nivel (completar + sin pistas + sin mezclar).
+  const bonus = GC.levelBonus({ hints:state.hints, shuffles:state.shuffles });
+  state.score += bonus;
+  updatePills();
+  const prevBest = getBest(state.level);
+  const isRecord = state.score > prevBest;
+  saveBest(state.level, state.score);
+  saveUnlocked(state.level+1);
+
+  const extras=[];
+  if(!state.hints)    extras.push('sin pistas +'+GC.SCORE.noHintBonus);
+  if(!state.shuffles) extras.push('sin mezclar +'+GC.SCORE.noShuffleBonus);
+  const lines=[];
+  lines.push(state.level>=TOTAL_LEVELS ? '¡Completaron TODOS los niveles! 🏆🐳' : '¡Muy bien jugado! 🌟');
+  lines.push('Puntaje: <b>'+state.score+'</b> ⭐');
+  lines.push('Bonus de nivel: +'+bonus + (extras.length ? ' ('+extras.join(', ')+')' : ''));
+  lines.push(isRecord ? '🏆 ¡Nuevo récord!' : 'Mejor: '+getBest(state.level)+' ⭐');
+
+  const ws=document.getElementById('winScreen');
+  document.getElementById('winMsg').innerHTML = lines.join('<br>');
+  document.getElementById('nextBtn').style.display = state.level>=TOTAL_LEVELS?'none':'';
+  ws.classList.remove('hidden');
+}
+
+// ---------- Acciones ----------
+function doShuffle(auto){
+  const remaining = state.tiles.filter(t=>!t.removed);
+  if(remaining.length<2) return;
+  assignSolvable(remaining, paletteForLevel(state.level));
+  for(const t of remaining){ t.removed=false; } // assignSolvable ya restaura
+  // re-pintar solo símbolos
+  state.selected=null;
+  state.chain=0; state.lastSym=null; // mezclar corta la cadena
+  renderBoard();
+  if(auto){
+    toast('Tablero mezclado 🔀');
+  } else {
+    state.shuffles++;
+    state.score = Math.max(0, state.score - GC.SCORE.shufflePenalty);
+    updatePills();
+    toast('🔀 Mezclado −'+GC.SCORE.shufflePenalty);
+  }
+}
+function doHint(){
+  const h = findHint();
+  if(!h){ toast('No hay jugadas visibles'); return; }
+  state.hints++;
+  state.score = Math.max(0, state.score - GC.SCORE.hintPenalty);
+  state.chain=0; state.lastSym=null; // la pista corta la cadena
+  updatePills();
+  h.forEach(t=>{ const el=state.els.get(t.id); el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint'); });
+  toast('💡 Pista −'+GC.SCORE.hintPenalty);
+}
+function doRestart(){ startLevel(state.level); toast('Nivel reiniciado'); }
+
+// ---------- Pantallas ----------
+function hideScreens(){ document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); }
+function showStart(){ hideScreens(); document.getElementById('startScreen').classList.remove('hidden'); }
+function showLevels(){
+  hideScreens();
+  const grid=document.getElementById('levelGrid'); grid.innerHTML='';
+  const unlocked=loadProgress();
+  for(let L=1; L<=TOTAL_LEVELS; L++){
+    const b=document.createElement('button');
+    b.className='lvlBtn'+(L>unlocked?' locked':(L<unlocked?' done':''));
+    b.textContent=L;
+    if(L<=unlocked) b.addEventListener('click', ()=>startLevel(L));
+    grid.appendChild(b);
+  }
+  document.getElementById('levelScreen').classList.remove('hidden');
+}
+
+let toastT;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),1600);
+}
+
+// ---------- Eventos ----------
+document.getElementById('playBtn').onclick   = ()=>startLevel(loadProgress());
+document.getElementById('levelsBtn').onclick = showLevels;
+document.getElementById('backBtn').onclick   = showStart;
+document.getElementById('menuBtn').onclick   = showLevels;
+document.getElementById('hintBtn').onclick   = doHint;
+document.getElementById('shuffleBtn').onclick= ()=>doShuffle(false);
+document.getElementById('restartBtn').onclick= doRestart;
+document.getElementById('nextBtn').onclick   = ()=>startLevel(Math.min(state.level+1,TOTAL_LEVELS));
+document.getElementById('winMenuBtn').onclick= showLevels;
+
+// Botón silenciar 🔊/🔇
+const muteBtn = document.getElementById('muteBtn');
+function refreshMute(){
+  const m = Audio.isMuted();
+  muteBtn.textContent = m ? '🔇' : '🔊';
+  muteBtn.setAttribute('aria-label', m ? 'Activar sonido' : 'Silenciar');
+}
+muteBtn.onclick = ()=>{ Audio.resume(); Audio.setMuted(!Audio.isMuted()); refreshMute(); };
+refreshMute();
+
+// Service worker (para que funcione sin internet e instalable)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+
+showStart();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "Mahjong para Luis y Leticia",
+  "short_name": "Mahjong L&L",
+  "description": "Mahjong solitario con muchos niveles y fichas de flores, tulipanes, peces, tiburones y ballenas.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0d2b35",
+  "theme_color": "#0d2b35",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
